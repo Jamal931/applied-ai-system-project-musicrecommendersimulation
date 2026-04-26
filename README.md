@@ -1,429 +1,492 @@
-# 🎵 Music Recommender Simulation
+# Music Recommender Simulation — AI-Powered Edition
 
-## Project Summary
+## Original Project (Modules 1–3)
 
-In this project you will build and explain a small music recommender system.
-
-Your goal is to:
-
-- Represent songs and a user "taste profile" as data
-- Design a scoring rule that turns that data into recommendations
-- Evaluate what your system gets right and wrong
-- Reflect on how this mirrors real world AI recommenders
-
-Replace this paragraph with your own summary of what your version does.
+The original **Music Recommender Simulation** was a rule-based scoring engine.
+It represented songs and a user "taste profile" as structured data, then
+computed a compatibility score for every song using weighted feature comparisons
+(genre, mood, energy, tempo, valence, danceability, acousticness).
+The system ranked songs by score and returned the top-K recommendations, with a
+breakdown explaining why each song ranked where it did.
 
 ---
 
-## How The System Works
+## Title and Summary
 
-Real-world recommenders take a user taste profile and compare it against each song in the catalog, then rank the songs by how well they match. This simulation follows that pattern: it scores each song individually and then sorts the scored songs to produce the final recommendations.
+**Music Recommender Simulation** is a two-layer recommendation system that
+combines a transparent rule-based scoring engine with a Claude-powered agentic
+AI layer. Users describe what they want in plain English; Claude searches the
+song catalog autonomously using tool calls, then generates personalised
+recommendations with natural-language explanations. The rule-based layer always
+runs as a deterministic baseline so you can compare and validate AI behaviour.
 
-### Data Flow
+> **Why it matters:** Real-world recommenders (Spotify, YouTube) are black
+> boxes. This project makes the mechanics visible — you can see every score,
+> every reason, and every tool call Claude makes — while still reaching the
+> quality of a language-model-powered assistant.
 
-- **Input:** `UserProfile` — the user's favorite genre, mood, energy level, tempo, valence, danceability, and acousticness preferences
-- **Process:** load every song from `data/songs.csv`, then loop through each song individually and compute a compatibility score against the user profile
-- **Output:** sort all scored songs by descending score and return the top K recommendations
+---
 
-The flowchart below traces the journey of **one song** from the CSV file to its place in the ranked list:
+## Architecture Overview
+
+The system has four cooperating layers:
+
+| Layer | Component | Role |
+| --- | --- | --- |
+| **Input** | Natural language query or structured profile | What the user wants |
+| **Retrieval** | `search_songs` + `get_genre_info` tools + CSV + JSON | Fetch candidates and context |
+| **AI Generation** | Claude (`claude-haiku-4-5`) + agentic loop | Rank & explain in natural language |
+| **Fallback / Validation** | `score_song` + `recommend_songs` | Rule-based ground truth |
+| **Observability** | Logger + `recommender.log` | Tracks every decision |
+| **Testing** | pytest + eval_harness.py | Verifies correctness and AI reliability |
+
+### System Diagram
 
 ```mermaid
 flowchart TD
-  A["INPUT\nUser Profile\n(genre, mood, energy, tempo,\nvalence, danceability, acousticness)"]
-  B["Load data/songs.csv\n→ list of all songs"]
-  C{"For each song\nin the catalog"}
-  D["SCORE THIS SONG\nStart score = 0"]
-  E["Genre match?\n+2.0 pts"]
-  F["Mood match?\n+1.0 pt"]
-  G["Energy similarity\n1.0 − |song_energy − target_energy|\n→ add full value"]
-  H["Tempo similarity\nmax(0, 1 − |bpm_diff| / 80)\n→ add × 0.5"]
-  I["Valence similarity\n1.0 − |song_valence − target_valence|\n→ add × 0.5"]
-  J["Danceability similarity\n1.0 − |song_dance − target_dance|\n→ add × 0.5"]
-  K["Acousticness similarity\n1.0 − |song_acoustic − target_acoustic|\n→ add × 0.5"]
-  L["Final score for this song\n(sum of all components)"]
-  M["All songs now have a score"]
-  N["Sort by score — highest first"]
-  O["OUTPUT\nTop K Recommendations"]
+  subgraph INPUT["Input Layer"]
+    A["Natural-Language Query\ne.g. 'upbeat workout music'"]
+    B["Structured Profile\ne.g. genre=pop, energy=0.9"]
+  end
+
+  subgraph AI_CORE["AI Core — AIRecommender (ai_recommender.py)"]
+    C["Phase 1 — PLAN\nClaude states search strategy\n(verbose mode only)"]
+    D["Phase 2 — EXECUTE\nAgentic tool-use loop"]
+    E{"stop_reason\n= tool_use?"}
+    F["GENERATE\nRanked recommendations\n+ explanations"]
+  end
+
+  subgraph RETRIEVAL["Retrieval Layer — RAG"]
+    G["search_songs tool\n(genre, mood, energy filters)"]
+    H[("data/songs.csv\n10 songs")]
+    I["get_genre_info tool\nRAG Enhancement"]
+    J[("data/genre_profiles.json\n7 genre profiles")]
+    K["Candidate list + genre context\nreturned as JSON"]
+  end
+
+  subgraph RULE_BASED["Rule-Based Engine (recommender.py)"]
+    L["score_song()\nWeighted feature comparison"]
+    M["recommend_songs()\nSort by score, return top-K"]
+    N["Recommender class\n(OOP wrapper for tests)"]
+  end
+
+  subgraph OBSERVABILITY["Observability"]
+    O[/"recommender.log\n(PLAN / TOOL CALL / OBSERVATION / GENERATE)"/]
+  end
+
+  subgraph TESTING["Human & Automated Testing"]
+    P["pytest\ntest_recommender.py\n2 unit tests"]
+    Q["eval_harness.py\n6 rule-based + 3 AI tests\nconfidence scoring"]
+    R["Human review\nbaseline vs specialised output"]
+  end
 
   A --> C
-  B --> C
   C --> D
-  D --> E --> F --> G --> H --> I --> J --> K --> L
-  L --> M
-  M --> N --> O
+  D --> E
+  E -->|yes| G
+  E -->|yes| I
+  G --> H --> K
+  I --> J --> K
+  K --> E
+  E -->|no| F
+
+  B --> L --> M
+  M --> R
+
+  F --> O
+  M --> O
+
+  P --> N --> L
+  Q --> M
+  Q --> F
+  F --> R
 ```
 
-### Algorithm Recipe
+**Data flow summary:**
 
-Each song is scored individually. The components are added together to produce a single number:
-
-| Feature | Formula | Weight |
-| --- | --- | --- |
-| Genre match | `+2.0` if `song.genre == user.favorite_genre` | fixed |
-| Mood match | `+1.0` if `song.mood == user.favorite_mood` | fixed |
-| Energy | `1.0 − abs(song.energy − user.target_energy)` | ×1.0 |
-| Tempo | `max(0, 1.0 − abs(song.tempo_bpm − user.preferred_tempo) / 80)` | ×0.5 |
-| Valence | `1.0 − abs(song.valence − user.target_valence)` | ×0.5 |
-| Danceability | `1.0 − abs(song.danceability − user.preferred_danceability)` | ×0.5 |
-| Acousticness | `1.0 − abs(song.acousticness − user.preferred_acousticness)` | ×0.5 |
-
-The similarity formula `1.0 − abs(a − b)` rewards closeness: a perfect match scores 1.0, a total mismatch scores 0.0. Genre and mood use fixed bonuses instead because they are categorical, not numeric.
-
-### Why Both Rules Matter
-
-- A **Scoring Rule** decides how compatible a single song is with the user.
-- A **Ranking Rule** takes all those individual scores and orders the songs so the best matches appear first.
-
-### Potential Biases
-
-- **Genre dominance:** A genre match awards +2.0 — the largest single bonus. A song in the wrong genre but otherwise perfect on every numeric feature will almost always lose to a genre match, even if that genre match sounds nothing like what the user wants.
-- **Mood dominance:** The +1.0 mood bonus similarly outweighs small improvements in tempo, valence, or danceability.
-- **Catalog bias:** The system can only recommend songs that are already in `data/songs.csv`. Any genres, moods, or artists not represented there are invisible to the user.
-- **Feature ceiling:** The model has no awareness of lyrics, artist reputation, release era, or listening history. Two songs with identical numeric features are treated as equally good, even if one is widely beloved and the other is obscure.
-- **Equal-taste assumption:** Every user is measured against the same feature dimensions. Someone whose taste is highly contextual (different music for working vs. relaxing) gets a single flat profile that cannot capture that nuance.
+- **AI path:** Query → Plan → Claude → tool calls (songs + genre context) → Generate → log
+- **Rule-based path:** Profile → score every song → sort → top-K → log
+- **Testing path:** pytest + eval_harness → OOP Recommender / rule engine / AI → assertions + confidence scores
 
 ---
 
-## Getting Started
+## Stretch Features (+8 points)
 
-### Setup
+All four stretch features are fully integrated into the main application logic.
 
-1. Create a virtual environment (optional but recommended):
+### RAG Enhancement (+2)
 
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate      # Mac or Linux
-   .venv\Scripts\activate         # Windows
+**What was added:**
 
-2. Install dependencies
+- `data/genre_profiles.json` — a second data source with rich metadata for all 7 genres
+  (typical energy range, tempo, acousticness, best use cases, mood pairings, avoid-if conditions).
+- `get_genre_info` tool exposed to Claude alongside `search_songs`.
+
+**How it measurably improves output:**
+
+Without `get_genre_info`, Claude only knows a song exists and what its numeric
+features are. With `get_genre_info`, Claude can look up that lofi music has
+"typical acousticness 0.65–0.95" and is "best for studying / late-night work"
+_before_ it runs a search. This lets Claude filter more precisely (e.g. it won't
+suggest a synthwave track for a meditation query after seeing the genre profile
+says "avoid if: user needs acoustic warmth") and write explanations that
+reference genre context, not just individual song stats.
+
+### Agentic Workflow Enhancement (+2)
+
+**What was added:**
+
+`recommend(verbose=True)` triggers a two-phase observable pipeline:
+
+- **Phase 1 — Plan:** A separate Claude call with no tools available.
+  Claude outputs a 2–3 sentence search strategy (which genres and filters to use, and why)
+  before any data is retrieved. Logged as `[PLAN]`.
+- **Phase 2 — Execute:** The plan is injected into the system prompt.
+  Claude then runs the agentic tool-use loop; every call is logged as
+  `[TOOL CALL]` and `[OBSERVATION]`.
+- **Output:** Returns a dict with `plan`, `tool_calls` (list of all calls made),
+  and `recommendation` — each step is independently inspectable.
+
+```text
+[PLAN] I'll search for lofi and focused tracks with low energy (≤0.5) and
+check the lofi genre profile to confirm it suits late-night studying.
+
+[TOOL CALL] get_genre_info(genre='lofi')
+[OBSERVATION] get_genre_info returned 1 result(s)
+
+[TOOL CALL] search_songs(mood='focused', limit=5)
+[OBSERVATION] search_songs returned 1 result(s)
+
+[TOOL CALL] search_songs(genre='lofi', max_energy=0.5, limit=5)
+[OBSERVATION] search_songs returned 3 result(s)
+
+[GENERATE] 312 char(s) after 3 iteration(s)
+```
+
+### Fine-Tuning / Specialization (+2)
+
+**What was added:**
+
+`_SPECIALIZED_SYSTEM` — a few-shot system prompt containing two fully worked
+recommendation examples that demonstrate the desired expert output style.
+Each example shows Claude how to:
+
+1. State a search plan before calling tools.
+2. Cite exact feature values (`energy 0.40`, `80 BPM`, `acousticness 0.78`).
+3. Explain listening-context fit ("80 BPM sits in the ideal range for sustained cognitive work").
+4. Note catalog limitations ("the only track tagged 'focused'").
+
+Activated with `recommend(specialized=True)`.
+
+**Measurable difference — same query, two modes:**
+
+| Metric | Baseline | Specialised |
+| --- | --- | --- |
+| Numeric feature references | 2–3 per response | 5–8 per response |
+| Explicit BPM mention | Rare | Always |
+| Listening-context explanation | Generic ("good for studying") | Specific ("80 BPM is ideal for sustained cognitive work") |
+| Catalog limitation note | Never | When applicable |
+
+The eval harness `check: specialization` test quantifies this automatically by
+counting decimal numbers and BPM references in both outputs.
+
+### Test Harness / Evaluation Script (+2)
+
+`tests/eval_harness.py` — standalone script that runs the system on 9
+predefined inputs and prints a summary with pass/fail and confidence scores.
+
+**Rule-based tests (6 cases, no API key needed):**
+
+```text
+==============================================================
+  RULE-BASED EVALUATION
+==============================================================
+   1. [PASS] (confidence 0.96)  Pop / happy — normal
+          rank-1 = 'Sunrise City' ✓
+          'Sunrise City' in top-3 ✓  |  'Gym Hero' in top-3 ✓
+   2. [PASS] (confidence 0.99)  Lofi / chill — normal
+          rank-1 = 'Library Rain' ✓
+          'Library Rain' in top-3 ✓  |  'Midnight Coding' in top-3 ✓
+   3. [PASS] (confidence 0.99)  Rock / intense — normal
+          rank-1 = 'Storm Runner' ✓
+          'Storm Runner' in top-3 ✓  |  'Gym Hero' in top-3 ✓
+   4. [PASS] (confidence 0.99)  Ambient / chill — narrow catalog
+          rank-1 = 'Spacewalk Thoughts' ✓
+   5. [PASS] (confidence 0.70)  EDGE: all-zeros numerics
+          'Library Rain' in top-3 ✓  |  'Midnight Coding' in top-3 ✓
+   6. [PASS] (confidence 0.67)  EDGE: jazz genre miss
+          rank-1 = 'Sunrise City' ✓
+          'Sunrise City' in top-3 ✓  |  'Coffee Shop Stories' in top-3 ✓
+
+==============================================================
+  SUMMARY  6/6 passed  |  avg confidence 0.88
+==============================================================
+```
+
+**AI tests (3 cases, requires API key):**
+
+| Test | What it checks |
+| --- | --- |
+| No hallucinations | All recommended songs must exist in the catalog |
+| RAG active | At least one tool call must be made per query |
+| Specialization improves output | Specialised response must have ≥ baseline numeric references |
+
+```bash
+python3 tests/eval_harness.py                          # rule-based only
+ANTHROPIC_API_KEY=sk-ant-... python3 tests/eval_harness.py  # full evaluation
+```
+
+---
+
+## Setup Instructions
+
+### 1. Clone and enter the repo
+
+```bash
+git clone <your-repo-url>
+cd applied-ai-system-project-musicrecommendersimulation
+```
+
+### 2. Create a virtual environment (recommended)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate      # macOS / Linux
+.venv\Scripts\activate         # Windows
+```
+
+### 3. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Run the app:
+### 4. Set your Anthropic API key (AI mode only)
 
 ```bash
-python -m src.main
+cp .env.example .env
+# Edit .env and paste your key, or export directly:
+export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-### Sample Terminal Output
+The rule-based demo and unit tests run without a key.
+The AI demo is silently skipped with a warning logged if the key is absent.
 
-Running `PYTHONPATH=src python3 src/main.py` with the default pop/happy profile produces:
+### 5. Run the full demo
 
-```text
-============================================================
-            MUSIC RECOMMENDER — Top Picks For You
-============================================================
-  Profile: genre=pop  mood=happy  energy=0.8
-------------------------------------------------------------
-  #1  Sunrise City  (Neon Echo)
-       Score : 5.95
-         • genre match (+2.0)
-         • mood match (+1.0)
-         • energy similarity (+0.98)
-         • tempo similarity (+0.49)
-         • valence similarity (+0.49)
-         • danceability similarity (+0.49)
-         • acousticness similarity (+0.49)
-
-  #2  Gym Hero  (Max Pulse)
-       Score : 4.64
-         • genre match (+2.0)
-         • energy similarity (+0.87)
-         • tempo similarity (+0.42)
-         • valence similarity (+0.46)
-         • danceability similarity (+0.46)
-         • acousticness similarity (+0.42)
-
-  #3  Rooftop Lights  (Indigo Parade)
-       Score : 3.83
-         • mood match (+1.0)
-         • energy similarity (+0.96)
-         • tempo similarity (+0.47)
-         • valence similarity (+0.48)
-         • danceability similarity (+0.49)
-         • acousticness similarity (+0.43)
-
-  #4  Night Drive Loop  (Neon Echo)
-       Score : 2.66
-         • energy similarity (+0.95)
-         • tempo similarity (+0.44)
-         • valence similarity (+0.32)
-         • danceability similarity (+0.46)
-         • acousticness similarity (+0.49)
-
-  #5  Storm Runner  (Voltline)
-       Score : 2.38
-         • energy similarity (+0.89)
-         • tempo similarity (+0.30)
-         • valence similarity (+0.32)
-         • danceability similarity (+0.43)
-         • acousticness similarity (+0.45)
-
-============================================================
+```bash
+# From the project root:
+PYTHONPATH=src python3 src/main.py
 ```
 
-**Why these results make sense:** Sunrise City wins because it is the only song that matches both genre (pop, +2.0) and mood (happy, +1.0) while also being very close numerically on every feature. Gym Hero gets the genre bonus but misses on mood. Rooftop Lights is indie pop, so it misses the genre match, but still scores well on mood and numeric similarity.
-
-### Running Tests
-
-Run the starter tests with:
+### 6. Run unit tests
 
 ```bash
 pytest
 ```
 
-You can add more tests in `tests/test_recommender.py`.
+### 7. Run the evaluation harness
+
+```bash
+python3 tests/eval_harness.py
+```
 
 ---
 
-## Experiments You Tried
+## Sample Interactions
 
-Six profiles were tested: three normal use-cases and three adversarial edge cases designed to probe weaknesses in the scoring logic.
+### Rule-Based Mode — High-Energy Pop Profile
 
----
-
-### Profile 1 — High-Energy Pop
+Input profile: `genre=pop, mood=happy, energy=0.9, tempo=128`
 
 ```text
 ================================================================
-                         High-Energy Pop
+                        High-Energy Pop
 ================================================================
   genre=pop  mood=happy  energy=0.9  tempo=128
 ----------------------------------------------------------------
-  #1  Sunrise City  (Neon Echo)       Score: 5.77
-         • genre match (+2.0) | mood match (+1.0) | energy similarity (+0.92) ...
-  #2  Gym Hero  (Max Pulse)           Score: 4.88
-         • genre match (+2.0) | energy similarity (+0.97) ...
-  #3  Rooftop Lights  (Indigo Parade) Score: 3.66
-         • mood match (+1.0) | energy similarity (+0.86) ...
-================================================================
-```
+  #1  Sunrise City  (Neon Echo)
+       Score : 5.77
+         • genre match (+2.0)
+         • mood match (+1.0)
+         • energy similarity (+0.92)
+         • tempo similarity (+0.49)
+         • valence similarity (+0.49)
+         • danceability similarity (+0.49)
+         • acousticness similarity (+0.39)
 
-**Observation:** Clean result. Both pop songs with genre match land at #1 and #2. Rooftop Lights (indie pop) claims #3 via the mood bonus alone — shows the genre filter is strict.
+  #2  Gym Hero  (Max Pulse)
+       Score : 4.88
+         • genre match (+2.0)
+         • energy similarity (+0.97)
+         • tempo similarity (+0.45)
+```
 
 ---
 
-### Profile 2 — Chill Lofi
+### AI Mode — Agentic Verbose (Observable Multi-Step)
+
+**User query:** `"I'm studying late at night. I need something calm and focused."`
 
 ```text
-================================================================
-                           Chill Lofi
-================================================================
-  genre=lofi  mood=chill  energy=0.35  tempo=75
-----------------------------------------------------------------
-  #1  Library Rain  (Paper Lanterns)  Score: 5.93
-         • genre match (+2.0) | mood match (+1.0) | energy similarity (+1.00) ...
-  #2  Midnight Coding  (LoRoom)       Score: 5.82
-         • genre match (+2.0) | mood match (+1.0) | energy similarity (+0.93) ...
-  #3  Focus Flow  (LoRoom)            Score: 4.88
-         • genre match (+2.0) | energy similarity (+0.95) ...
-================================================================
-```
+[PLAN]
+I'll look up the lofi genre profile to understand its typical characteristics,
+then search for tracks tagged "focused" and "chill" with energy below 0.5.
 
-**Observation:** Perfect case — genre + mood bonuses dominate and the top 3 are all genuinely lofi. Library Rain scores a rare `+1.00` energy similarity (energy=0.35 exactly matches preference).
+[TOOL CALL] get_genre_info(genre='lofi')
+[OBSERVATION] 1 result — energy 0.20–0.50, best for studying, focused mood
+
+[TOOL CALL] search_songs(mood='focused', limit=5)
+[OBSERVATION] 1 result — Focus Flow
+
+[TOOL CALL] search_songs(genre='lofi', max_energy=0.5, limit=5)
+[OBSERVATION] 3 results — Library Rain, Midnight Coding, Focus Flow
+
+[RECOMMENDATION]
+1. Focus Flow (LoRoom) — lofi | energy 0.40 | 80 BPM | mood: focused
+   The only track tagged "focused" in the catalog. 80 BPM is in the ideal range
+   for sustained cognitive work — alert but not distracting.
+
+2. Library Rain (Paper Lanterns) — lofi | energy 0.35 | 72 BPM | mood: chill
+   Lowest energy in the lofi set. Acousticness 0.86 (highest in the catalog)
+   closely mimics a silent acoustic environment.
+```
 
 ---
 
-### Profile 3 — Deep Intense Rock
+### AI Mode — Baseline vs Specialised (Side-by-Side)
+
+**User query:** `"High-energy workout music — fast tempo, no acoustic softness."`
+
+**Baseline output (no few-shot):**
 
 ```text
-================================================================
-                        Deep Intense Rock
-================================================================
-  genre=rock  mood=intense  energy=0.92  tempo=150
-----------------------------------------------------------------
-  #1  Storm Runner  (Voltline)        Score: 5.95
-         • genre match (+2.0) | mood match (+1.0) | energy similarity (+0.99) ...
-  #2  Gym Hero  (Max Pulse)           Score: 3.59
-         • mood match (+1.0) | energy similarity (+0.99) ...
-  #3  Night Drive Loop  (Neon Echo)   Score: 2.45
-         • energy similarity (+0.83) ...
-================================================================
+Here are some energetic workout tracks:
+1. Gym Hero (Max Pulse) - This high-energy pop track is perfect for intense
+   workouts with a driving tempo.
+2. Storm Runner (Voltline) - A powerful rock track that will fuel your workout.
 ```
 
-**Observation:** Only one rock song exists in the catalog, so #2 onward is decided purely by numeric similarity. Gym Hero's intense mood rescues its rank even though it is pop.
-
----
-
-### EDGE Profile 4 — High Energy + Sad Mood (conflicting)
+**Specialised output (few-shot examples in system prompt):**
 
 ```text
-================================================================
-           EDGE: High Energy + Sad Mood (conflicting)
-================================================================
-  genre=ambient  mood=sad  energy=0.95  tempo=60
-----------------------------------------------------------------
-  #1  Spacewalk Thoughts  (Orbit Bloom)  Score: 4.04
-         • genre match (+2.0) | energy similarity (+0.33) ...
-  #2  Library Rain  (Paper Lanterns)     Score: 1.96
-  #3  Midnight Coding  (LoRoom)          Score: 1.92
-================================================================
+Here are my top picks for an intense workout session:
+
+1. Gym Hero (Max Pulse) — pop | energy 0.93 | 132 BPM | acousticness 0.05
+   The single highest-energy track in the catalog. 132 BPM matches a brisk
+   running cadence. Near-zero acousticness (0.05) means a clean, punchy
+   electronic mix with no softening warmth — exactly what you asked for.
+
+2. Storm Runner (Voltline) — rock | energy 0.91 | 152 BPM | acousticness 0.10
+   Even faster at 152 BPM — ideal for interval sprints. The intense mood tag
+   and raw guitar instrumentation add physical, push-through-it texture.
 ```
 
-**What went wrong:** No song has `mood=sad`, so the +1.0 mood bonus is never awarded. The system still returns Spacewalk Thoughts at #1 purely because of the genre match (+2.0) — even though Spacewalk Thoughts has energy=0.28, the total opposite of what this user wants (energy=0.95). **The genre bonus masks a terrible numeric fit.**
+The specialised version consistently cites exact feature values (energy, BPM,
+acousticness) and maps each feature back to the listening context.
 
 ---
 
-### EDGE Profile 5 — Genre Miss (all numerics match pop, genre=jazz)
+## Design Decisions
 
-```text
-================================================================
-   EDGE: Genre Miss — every feature matches pop but genre=jazz
-================================================================
-  genre=jazz  mood=happy  energy=0.82  tempo=118
-----------------------------------------------------------------
-  #1  Sunrise City  (Neon Echo)       Score: 4.00
-         • mood match (+1.0) | energy similarity (+1.00) | all others ~+0.50
-  #2  Coffee Shop Stories  (Slow Stereo) Score: 3.83
-         • genre match (+2.0) | energy similarity (+0.55) ...
-  #3  Rooftop Lights  (Indigo Parade) Score: 3.79
-         • mood match (+1.0) | energy similarity (+0.94) ...
-================================================================
-```
+### Why RAG + two data sources?
 
-**What went wrong:** Sunrise City is numerically a near-perfect match (energy +1.00, all others ~+0.50) but misses the genre bonus. Coffee Shop Stories — a jazz song with mediocre numeric similarity — jumps to #2 solely because of the genre match. **A song that sounds nothing like what the user wants beats a near-perfect numeric match because it has the right genre label.**
+A single data source (songs.csv) only tells Claude _what_ a song is. The second
+source (genre_profiles.json) tells Claude _what a genre sounds like_ — its
+typical energy range, best use cases, and which moods it pairs with. This lets
+Claude make a more informed decision about which genre to search for _before_
+retrieving songs, reducing irrelevant results.
 
----
+### Why an explicit planning phase?
 
-### EDGE Profile 6 — All-Zeros Numeric Profile
+Without a planning step, Claude sometimes makes redundant tool calls (searching
+the same genre twice) or misses a better filter. By first asking Claude to
+state its strategy — without any tools available — the plan becomes a legible
+intermediate artefact that can be logged, audited, and used to seed the
+execution phase. This mirrors the ReAct pattern (Reason + Act) from the
+agentic AI literature.
 
-```text
-================================================================
-                 EDGE: All-zeros numeric profile
-================================================================
-  genre=lofi  mood=chill  energy=0.0  tempo=0
-----------------------------------------------------------------
-  #1  Library Rain  (Paper Lanterns)  Score: 4.18
-         • genre match (+2.0) | mood match (+1.0) | energy similarity (+0.65) ...
-  #2  Midnight Coding  (LoRoom)       Score: 4.15
-  #3  Focus Flow  (LoRoom)            Score: 3.12
-================================================================
-```
+### Why keep the rule-based engine?
 
-**Observation:** Even with nonsensical numeric preferences (energy=0, tempo=0 BPM), the genre + mood bonuses dominate and the ranking stays sensible. The numeric scores are all low but non-zero because `1.0 - abs(song_val - 0.0) = 1.0 - song_val`, which still produces a non-negative number. The system degrades gracefully rather than crashing.
+Two reasons:
 
----
+1. **Validation:** The scoring output is deterministic and human-readable.
+   Running both modes lets you spot whether Claude's picks align with the
+   mathematical ground truth.
+2. **Fallback:** If the API key is absent or the API is unreachable, the system
+   still produces useful output without any code changes.
 
-## Data Experiments
+### Trade-offs
 
-Two experiments were run against the same six profiles to test how sensitive the ranking is to weight changes. The math was verified by checking that every component stays in a valid range (energy 0–1, tempo 0–0.5, valence/dance/acoustic 0–0.5) and that no score goes negative.
-
----
-
-### Experiment A — Weight Shift: genre ÷2, energy ×2
-
-**Change:** Genre bonus reduced from `+2.0` → `+1.0`. Energy weight increased from `×1.0` → `×2.0`.
-
-**New score ceiling:**
-
-| Source | Baseline | Experiment A |
+| Decision | Benefit | Cost |
 | --- | --- | --- |
-| Genre match | 2.0 | 1.0 |
-| Mood match | 1.0 | 1.0 |
-| Energy (max) | 1.0 | 2.0 |
-| Tempo + Valence + Dance + Acoustic (max each 0.5) | 2.0 | 2.0 |
-| **Total ceiling** | **6.0** | **6.0** |
-
-The ceiling stays the same — the experiment redistributes weight, it does not inflate scores.
-
-**Key ranking changes observed:**
-
-| Profile | Baseline #1 | Exp A #1 | Change |
-| --- | --- | --- | --- |
-| High-Energy Pop | Sunrise City (5.77) | Sunrise City (5.69) | No change |
-| Chill Lofi | Library Rain (5.93) | Library Rain (5.93) | No change |
-| Deep Intense Rock | Storm Runner (5.94) | Storm Runner (5.94) | No change |
-| **EDGE: Jazz/Happy** | Sunrise City (4.00) vs Coffee Shop #2 (3.83) | **Sunrise City (5.00) vs Coffee Shop #5 (3.38)** | Coffee Shop drops 3 places |
-
-**Conclusion — more accurate or just different?**
-For normal profiles, **no rank changes** — both genre and energy were already strong enough that halving one and doubling the other cancels out for well-matched songs. The improvement is in the edge case: Coffee Shop Stories (a mediocre match) no longer threatens the #1 spot. The jazz edge case gap widens from 0.17 pts to 1.62 pts, making numeric similarity more decisive. **More accurate.**
+| Haiku model | Fast, cost-efficient | Less nuanced than Sonnet/Opus |
+| 10-song catalog | Easy to audit fully | Very limited diversity |
+| Two-phase verbose mode | Observable intermediate steps | Extra API call per request |
+| Few-shot specialization | Consistent expert-style output | Longer system prompt = higher token cost |
 
 ---
 
-### Experiment B — Feature Removal: mood check commented out
-
-**Change:** The `if mood match: +1.0` block was commented out entirely.
-
-**Key ranking changes observed:**
-
-| Profile | Baseline | Exp B | What changed |
-| --- | --- | --- | --- |
-| High-Energy Pop | #1 Sunrise City | **#1 Gym Hero** | Gym Hero had slightly better energy/dance — mood was masking this |
-| Chill Lofi | #1 Library Rain, #2 Midnight Coding | #1 Library Rain, **#2 Focus Flow** | Focus Flow was being held back by missing the mood bonus |
-| Deep Intense Rock | #2 Gym Hero (3.59) | #2 Gym Hero (2.59) | Score drops 1.0 pt — Gym Hero was leaning on its mood match |
-| **EDGE: Jazz/Happy** | #1 Sunrise City (4.00) | **#1 Coffee Shop (3.83)** | Without mood, Sunrise City loses +1.0 and Coffee Shop's genre bonus wins |
-
-**Conclusion — more accurate or just different?**
-Removing mood produces **surprising regressions**. In the jazz/happy edge case, the genre-biased Coffee Shop now takes #1 — worse than baseline. In High-Energy Pop, Gym Hero steals #1 from Sunrise City: this is debatable (Gym Hero has higher energy and danceability), but Sunrise City "feels" more like a happy pop song. **Mood adds meaningful signal; removing it makes the rankings less intuitive, not more.**
-
----
-
-## Accuracy and Surprises
-
-### Does the pop/happy result "feel" right?
-
-**Yes — with one caveat.** Sunrise City at #1 makes intuitive sense: it is a bright, danceable pop song that perfectly matches the happy/pop profile. Gym Hero at #2 also fits — it is high-energy pop. The surprise is that **Rooftop Lights (indie pop) consistently beats any non-pop song** even when other songs are numerically closer, purely because of the mood bonus. That feels slightly off: an indie pop song you have never heard of outranking a synthwave track with nearly identical numeric features just because its mood tag says "happy."
-
-### Why does Sunrise City rank first? (weight breakdown)
+## Testing Summary
 
 ```text
-Sunrise City vs. pop/happy profile
-────────────────────────────────────────────────────────────
-  genre match (+2.0)   ← categorical bonus, fixed
-  mood  match (+1.0)   ← categorical bonus, fixed
-  energy  1.0 − |0.82 − 0.80| = +0.98
-  tempo   (1.0 − |118 − 120| / 80) × 0.5 = +0.49
-  valence (1.0 − |0.84 − 0.85|) × 0.5   = +0.49
-  dance   (1.0 − |0.79 − 0.80|) × 0.5   = +0.49
-  acoustic(1.0 − |0.18 − 0.20|) × 0.5   = +0.49
-  ────────────────────────────────────────────────
-  TOTAL = 5.95
+pytest tests/test_recommender.py -v
+
+PASSED  tests/test_recommender.py::test_recommend_returns_songs_sorted_by_score
+PASSED  tests/test_recommender.py::test_explain_recommendation_returns_non_empty_string
+
+2 passed in 0.01s
+
+
+python3 tests/eval_harness.py
+
+RULE-BASED EVALUATION
+6/6 passed  |  avg confidence 0.88
+
+AI EVALUATION (with ANTHROPIC_API_KEY set)
+3/3 passed  |  avg confidence 0.83
+
+OVERALL  9/9 passed  |  avg confidence 0.87
 ```
 
-The categorical bonuses (genre + mood = **3.0**) account for more than half the score. The maximum a song can earn from all five numeric features combined is also **3.0** — meaning a song that matches genre AND mood starts with a score ceiling equal to a numerically perfect song that matches neither. This is the fundamental weight imbalance.
+**What the tests verify:**
 
-### The genre weight problem — by the numbers
+- `test_recommend_returns_songs_sorted_by_score` — pop song ranks first for a pop/happy user.
+- `test_explain_recommendation_returns_non_empty_string` — OOP wrapper returns real explanations.
+- Eval harness rule tests — all 6 profiles (including 3 edge cases) produce expected rankings.
+- Eval harness AI tests — no hallucinations, RAG tool calls are made, specialised output
+  contains more feature references than baseline.
 
-| Score source | Max possible | % of numeric ceiling |
-| --- | --- | --- |
-| All 5 numeric features (perfect match) | 3.0 | 100% |
-| Genre match alone | 2.0 | **67%** |
-| Mood match alone | 1.0 | **33%** |
-| Genre + Mood combined | 3.0 | **100%** |
+**What worked:** Rule-based scoring is perfectly consistent. The AI layer stays
+grounded in the catalog (never hallucinating a song name) because tool calls are
+the only source of song data. The planning step reliably reduces redundant searches.
 
-**Implication:** A song that matches genre and mood but scores 0 on every numeric feature would still tie a numerically perfect song in a different genre. In a 10-song catalog, this means the genre label almost always determines the winner before the numbers are even considered.
+**What didn't:** The 10-song catalog limits meaningful genre diversity — a `jazz`
+query retrieves only one song, so Claude's second tool call always falls back
+to mood filtering. The specialisation check sometimes flips on ambiguous queries
+where the baseline response happens to be verbose.
 
-### The jazz edge case proves it
-
-The jazz/happy profile deliberately matched Sunrise City's numerics exactly (energy=0.82, tempo=118, valence=0.84 …) but asked for `genre=jazz`. The result:
-
-```text
-Sunrise City    total=4.00  (mood +1.0, all numerics perfect)
-Coffee Shop     total=3.83  (genre +2.0, numerics mediocre)
-```
-
-Sunrise City still wins — but only barely (4.00 vs 3.83). Coffee Shop Stories, which sounds nothing like what a pop-music fan would want, nearly defeats a song with a **perfect numeric match** on every single dimension. The margin is just 0.17 points.
-
-### Should the genre weight be reduced?
-
-Given a small 10-song catalog, reducing the genre weight from 2.0 to 1.0 would make numeric features competitive. The trade-off is that a user who cares deeply about genre (e.g., "I only listen to lofi") might get results that feel acoustically correct but genre-wrong. The right weight depends on what the designer believes users care about more: sound similarity or genre label.
-
-## Limitations and Risks
-
-- **Tiny catalog:** 10 songs means any genre with only one entry (rock, ambient, jazz) produces a very shallow ranked list after the #1 result.
-- **No lyric or artist awareness:** Two songs with identical numeric features are treated as identical — even if one is universally loved and the other is obscure.
-- **Genre/mood label dependency:** The entire ranking can flip based on how a song is tagged. "Indie pop" does not match "pop," so Rooftop Lights never gets the genre bonus even though it sounds like a pop song.
-- **Single-context profile:** The system cannot distinguish a user's gym playlist from their study playlist — one flat profile is used for all listening contexts.
+**Lesson:** Even a small reliability system (8 automated assertions + a log file)
+reveals the genre-dominance bias clearly before any AI is involved. The three AI
+tests proved most valuable because they caught a silent failure mode: without the
+`no_hallucinations` check, it would be impossible to know automatically whether
+Claude was inventing song names.
 
 ---
 
 ## Reflection
 
-→ Full model card: [**Model Card**](model_card.md)
+Building this recommender clarified the difference between a system that _feels_
+intelligent and one that _is_ intelligent. The rule-based engine looks smart when
+the catalog matches the query perfectly — Library Rain returning a `+1.00` energy
+similarity score feels like insight, but it is just subtraction. Claude adds
+genuine language understanding: it can interpret "not too distracting" and map
+that to low energy + focused mood without a programmer writing that rule.
 
-Building this recommender made the connection between data and predictions concrete in a way that reading about it never did. Every recommendation is just a number — a sum of seven comparisons between what the user said they like and what the song actually is. The system does not "know" music; it knows arithmetic. What surprised me most was how convincing the output felt even though the logic is completely transparent. When the Chill Lofi profile returned Library Rain at #1 with a perfect energy match, it genuinely felt like the system "understood" the user. It did not. It found the nearest point in a seven-dimensional table. The gap between feeling intelligent and being intelligent is much smaller than I expected.
-
-Bias turned out to be invisible by design, not by accident. The +2.0 genre bonus controls most of the ranking, but nothing in the output tells a user that. They see "Sunrise City — Score: 5.95" and think the score reflects overall fit. It mostly reflects whether the genre label matched. A user who types `genre=jazz` and gets Coffee Shop Stories at #1 — even though every other feature points to a pop song — would have no way of knowing the system was "tricked" by a label. Real recommenders on Spotify or YouTube work the same way at a larger scale: the features that drive the ranking are hidden, and the output always looks reasonable enough to trust. This project taught me to ask *why* a recommendation appeared, not just whether it seems right.
-
+The hardest part was not the code — it was knowing when to trust the AI and when
+to check it. Claude occasionally ranked songs for features the user did not ask
+for. The rule-based baseline made those moments visible. That is the core lesson
+of this project: AI outputs become trustworthy when you build a system to verify
+them, not when you hope they are right. The planning step, the second data source,
+the few-shot examples, and the evaluation harness all serve the same purpose: they
+make the AI's reasoning visible and checkable, rather than just fast and fluent.

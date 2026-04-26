@@ -1,0 +1,65 @@
+{
+  "pop": {
+    "description": "Polished, radio-friendly music engineered for wide appeal. Catchy hooks, produced vocals, and a blend of synthesiser and live instrumentation. The genre prioritises accessibility over complexity.",
+    "typical_energy": "0.70–0.95",
+    "typical_tempo_bpm": "100–140",
+    "typical_acousticness": "0.05–0.30",
+    "best_for": ["parties", "upbeat mornings", "commuting", "background energy"],
+    "mood_pairings": ["happy", "energetic", "upbeat"],
+    "avoid_if": "listener wants acoustic warmth, jazz complexity, or lo-fi texture"
+  },
+  "lofi": {
+    "description": "Low-fidelity hip-hop and chill beats defined by mellow rhythms, vinyl crackle, and warm lo-fi textures. Intentionally imperfect production creates a relaxed, nostalgic feel perfect for sustained focus.",
+    "typical_energy": "0.20–0.50",
+    "typical_tempo_bpm": "60–95",
+    "typical_acousticness": "0.65–0.95",
+    "best_for": ["studying", "reading", "late-night work", "relaxation"],
+    "mood_pairings": ["chill", "focused", "relaxed"],
+    "avoid_if": "listener needs high energy, fast tempo, or a distinct vocal performance"
+  },
+  "rock": {
+    "description": "Guitar-driven music emphasising raw power, dynamic contrasts, and live performance energy. Ranges from melodic alternative rock to hard rock. Generally the highest energy genre in the catalog.",
+    "typical_energy": "0.75–1.00",
+    "typical_tempo_bpm": "120–180",
+    "typical_acousticness": "0.05–0.20",
+    "best_for": ["working out", "driving fast", "high-intensity tasks", "releasing tension"],
+    "mood_pairings": ["intense", "energetic", "raw", "powerful"],
+    "avoid_if": "listener needs calm, focused, or acoustic music"
+  },
+  "jazz": {
+    "description": "Harmonically rich, improvisational music rooted in swing and bebop traditions. Complex chord progressions, expressive soloists, and sophisticated rhythm. Typically relaxed to moderate energy with warm acoustics.",
+    "typical_energy": "0.20–0.60",
+    "typical_tempo_bpm": "70–130",
+    "typical_acousticness": "0.70–0.95",
+    "best_for": ["dinner ambience", "creative writing", "background for conversation", "winding down"],
+    "mood_pairings": ["relaxed", "sophisticated", "smooth", "contemplative"],
+    "avoid_if": "listener wants driving beats, high energy, or modern electronic production"
+  },
+  "ambient": {
+    "description": "Atmospheric, texture-driven music that creates immersive sonic environments with minimal rhythmic structure. Long sustaining sounds and slow movement designed for passive listening or meditative focus.",
+    "typical_energy": "0.10–0.40",
+    "typical_tempo_bpm": "50–80",
+    "typical_acousticness": "0.80–0.98",
+    "best_for": ["meditation", "deep focus", "sleep", "background for reading or thinking"],
+    "mood_pairings": ["chill", "peaceful", "dreamy", "introspective"],
+    "avoid_if": "listener needs tempo, energy, or a memorable melody to stay engaged"
+  },
+  "synthwave": {
+    "description": "Retro-futuristic electronic music inspired by 1980s film scores. Analog synthesisers, driving bass lines, and cinematic atmosphere. Bridges electronic intensity with emotional depth.",
+    "typical_energy": "0.55–0.85",
+    "typical_tempo_bpm": "95–130",
+    "typical_acousticness": "0.10–0.35",
+    "best_for": ["night drives", "late-night coding", "gaming", "creative work after dark"],
+    "mood_pairings": ["moody", "atmospheric", "nostalgic", "cinematic"],
+    "avoid_if": "listener wants acoustic warmth, live instruments, or upbeat positivity"
+  },
+  "indie pop": {
+    "description": "Melodic, hook-driven music that combines the DIY aesthetic of indie rock with the accessibility of mainstream pop. Warmer, more organic production. Wide emotional range from bittersweet to jubilant.",
+    "typical_energy": "0.55–0.85",
+    "typical_tempo_bpm": "100–135",
+    "typical_acousticness": "0.25–0.55",
+    "best_for": ["road trips", "casual listening", "social gatherings", "sunny days"],
+    "mood_pairings": ["happy", "warm", "nostalgic", "feel-good"],
+    "avoid_if": "listener wants aggressive energy, pure electronic production, or minimal acoustics"
+  }
+}
