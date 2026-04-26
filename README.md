@@ -1,7 +1,5 @@
 # Music Recommender Simulation — AI-Powered Edition
 
-## Original Project (Modules 1–3)
-
 The original **Music Recommender Simulation** was a rule-based scoring engine.
 It represented songs and a user "taste profile" as structured data, then
 computed a compatibility score for every song using weighted feature comparisons
