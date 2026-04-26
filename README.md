@@ -108,11 +108,11 @@ flowchart TD
 
 ---
 
-## Stretch Features (+8 points)
+## Stretch Features
 
 All four stretch features are fully integrated into the main application logic.
 
-### RAG Enhancement (+2)
+### RAG Enhancement 
 
 **What was added:**
 
@@ -130,7 +130,7 @@ suggest a synthwave track for a meditation query after seeing the genre profile
 says "avoid if: user needs acoustic warmth") and write explanations that
 reference genre context, not just individual song stats.
 
-### Agentic Workflow Enhancement (+2)
+### Agentic Workflow Enhancement 
 
 **What was added:**
 
@@ -161,7 +161,7 @@ check the lofi genre profile to confirm it suits late-night studying.
 [GENERATE] 312 char(s) after 3 iteration(s)
 ```
 
-### Fine-Tuning / Specialization (+2)
+### Fine-Tuning / Specialization 
 
 **What was added:**
 
@@ -188,7 +188,7 @@ Activated with `recommend(specialized=True)`.
 The eval harness `check: specialization` test quantifies this automatically by
 counting decimal numbers and BPM references in both outputs.
 
-### Test Harness / Evaluation Script (+2)
+### Test Harness / Evaluation Script 
 
 `tests/eval_harness.py` — standalone script that runs the system on 9
 predefined inputs and prints a summary with pass/fail and confidence scores.
@@ -221,7 +221,7 @@ predefined inputs and prints a summary with pass/fail and confidence scores.
 ==============================================================
 ```
 
-**AI tests (3 cases, requires API key):**
+**AI tests (3 cases, required API key):**
 
 | Test | What it checks |
 | --- | --- |
