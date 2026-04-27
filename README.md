@@ -299,7 +299,8 @@ The screenshots below are captured from an actual run of `PYTHONPATH=src python3
 
 #### High-Energy Pop (`genre=pop, mood=happy, energy=0.9, tempo=128`)
 
-![High-Energy Pop terminal output](screenshots/output-pop.png)
+![High-Energy Pop terminal output]<img width="953" height="712" alt="Image 4-26-26 at 23 01" src="https://github.com/user-attachments/assets/e6168608-8511-4544-9924-bcad480a4bbf" />
+
 
 Sunrise City wins because it is the only song that matches both genre (+2.0) and
 mood (+1.0) while also scoring near-perfect on every numeric feature. Gym Hero
