@@ -299,7 +299,7 @@ The screenshots below are captured from an actual run of `PYTHONPATH=src python3
 
 #### High-Energy Pop (`genre=pop, mood=happy, energy=0.9, tempo=128`)
 
-![High-Energy Pop terminal output]<img width="953" height="712" alt="Image 4-26-26 at 23 01" src="https://github.com/user-attachments/assets/e6168608-8511-4544-9924-bcad480a4bbf" />
+[High-Energy Pop terminal output]<img width="953" height="712" alt="Image 4-26-26 at 23 01" src="https://github.com/user-attachments/assets/e6168608-8511-4544-9924-bcad480a4bbf" />
 
 
 Sunrise City wins because it is the only song that matches both genre (+2.0) and
@@ -309,7 +309,8 @@ via the mood bonus alone — showing that the genre filter is strict.
 
 #### Chill Lofi (`genre=lofi, mood=chill, energy=0.35, tempo=75`)
 
-![Chill Lofi terminal output](screenshots/output-lofi.png)
+![Chill Lofi terminal output]<img width="1141" height="669" alt="Image 4-26-26 at 23 01" src="https://github.com/user-attachments/assets/bd94b3fc-f099-48cc-99be-62c47d03c75a" />
+
 
 A clean result — genre + mood bonuses dominate and the top 3 are all lofi tracks.
 Library Rain scores a rare `+1.00` energy similarity because its energy (0.35)
@@ -318,7 +319,8 @@ even though it is ambient, not lofi — illustrating catalog-depth limits.
 
 #### Deep Intense Rock (`genre=rock, mood=intense, energy=0.92, tempo=150`)
 
-![Deep Intense Rock terminal output](screenshots/output-rock.png)
+![Deep Intense Rock terminal output]<img width="915" height="651" alt="Image 4-26-26 at 23 01 (1)" src="https://github.com/user-attachments/assets/c661d8bb-21e1-4cf6-aa59-2cae47ff9568" />
+
 
 Only one rock song exists in the catalog, so Storm Runner wins easily at 5.95.
 Everything below #1 is decided purely by numeric similarity — Gym Hero's
