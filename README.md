@@ -488,3 +488,115 @@ of this project: AI outputs become trustworthy when you build a system to verify
 them, not when you hope they are right. The planning step, the second data source,
 the few-shot examples, and the evaluation harness all serve the same purpose: they
 make the AI's reasoning visible and checkable, rather than just fast and fluent.
+
+---
+
+## Responsible AI Reflection
+
+### What are the limitations or biases in your system?
+
+**Genre dominance bias** is the most significant flaw. The `+2.0` genre bonus
+accounts for up to 67% of the maximum numeric score, meaning the genre label on
+a song almost always controls the final ranking before energy, tempo, or mood are
+even considered. A song that perfectly matches every numeric feature but carries
+the wrong genre tag can lose to a song that sounds nothing like what the user
+wants — the jazz edge-case experiment proved this with Coffee Shop Stories nearly
+beating Sunrise City despite a perfect numeric mismatch.
+
+**Catalog bias** is structural: the system can only recommend what is in
+`data/songs.csv`. Entire genres (classical, hip-hop, R&B, country) do not exist
+in the catalog. A user whose actual taste falls outside the 10 songs gets the
+least-bad match, not a good one. At scale this creates a feedback loop — genres
+that are over-represented in a catalog keep getting recommended, which discourages
+adding underrepresented music.
+
+**Label dependency** means the system treats genre and mood as ground truth, but
+those tags are assigned by whoever built the dataset. "Indie pop" does not match
+"pop" even if the songs sound identical. Two songs with the same tags are treated
+as equally fitting even if one is beloved and one is obscure.
+
+**Single-context profile** assumes one flat taste description covers all of a
+user's listening situations. Someone who listens to lofi while studying and
+hardstyle while training gets the same profile for both, which is wrong for both.
+
+**Claude's own biases** affect the AI layer too. Claude's training data
+over-represents certain musical traditions and languages. When asked for
+"feel-good" music with no other context, Claude may default toward Western pop
+conventions without the user ever specifying that.
+
+### Could your AI be misused, and how would you prevent that?
+
+**Catalog manipulation (payola):** Anyone who controls `songs.csv` can make any
+song rank first by assigning it a genre that matches common user queries. At
+scale, this is how recommendation-system payola works — labels pay to get
+favorable tags, not favorable reviews. Prevention: the data source should be
+read-only and maintained independently of whoever benefits from recommendations.
+Auditing which songs appear in top-K results across many queries would surface
+systematic bias.
+
+**Filter bubbles:** A system that always recommends what you already like
+narrows musical exposure over time. A user who starts with pop gets pop forever.
+Prevention: add a diversity term to the scoring formula that penalises
+recommending the same genre more than twice in a top-5 list, or explicitly
+surface one "discovery" result outside the user's usual genres.
+
+**Tone/context misuse:** The Claude layer accepts any natural-language query.
+A malicious prompt could theoretically attempt to extract the system prompt or
+manipulate Claude's output. Prevention: the system prompt is not user-visible,
+tool results are sanitised JSON (not raw user input), and Claude's output is
+displayed as plain text — no HTML or code execution path exists.
+
+**Overconfidence:** Users may trust the AI's confident, fluent explanations
+even when they are wrong. Displaying the rule-based score alongside every
+AI recommendation ("the scoring engine rates this 4.8/6.0") gives users a
+second signal to sanity-check the AI's claim.
+
+### What surprised you while testing the AI's reliability?
+
+Two things stood out.
+
+First, **Claude never hallucinated a song name** once the tool-use constraint
+was in place. Before adding tools, a plain prompt asking Claude to "recommend
+some lofi songs" would produce plausible-sounding but fictional titles. The
+moment search results came exclusively through `search_songs`, that failure
+mode disappeared entirely. The tool is not just a convenience — it is a
+hard factual guardrail.
+
+Second, **the all-zeros edge case degraded gracefully instead of crashing.**
+A profile with `energy=0, tempo=0, valence=0` still produced a sensible
+ranked list because `1.0 - abs(song_val - 0.0) = 1.0 - song_val` is always
+non-negative. The genre and mood bonuses then dominated, which happened to be
+the correct behaviour — a user who provides no numeric preferences should get
+results driven by their genre and mood choices. That robustness was accidental,
+not designed, which is itself a warning: systems can behave correctly for the
+wrong reason, and tests that only check output without checking reasoning will
+miss that distinction.
+
+### Collaboration with AI during this project
+
+Throughout this project I worked with Claude Code (an AI coding assistant) to
+build and improve the system. Here is an honest account of one instance where
+its help was genuinely valuable and one where it fell short.
+
+**Helpful suggestion — serialising tool results as JSON:**
+When implementing the agentic tool-use loop, Claude Code suggested passing tool
+results back to Claude as `json.dumps(result)` rather than `str(result)`.
+That distinction matters: Python's `str()` on a list of dicts produces
+`[{'title': 'Sunrise City', ...}]` — valid Python but not valid JSON. Claude
+(the model) expects JSON in tool result messages. Using `str()` would have caused
+subtle parsing failures that might not have surfaced immediately. Switching to
+`json.dumps()` made the tool results unambiguously machine-readable and fixed
+a bug before it was ever visible in the output.
+
+**Flawed suggestion — sample outputs written before the code ran:**
+Early in the project, Claude Code wrote the "Sample Interactions" section of the
+README with representative AI responses — including specific song names, BPM
+values, and quoted Claude output — before the `ai_recommender.py` code had been
+tested against a live API key. The outputs looked plausible because they were
+constructed from the catalog data, but they were not real. A reader could not
+tell that "Claude response" in the README was authored by the assistant writing
+the README, not by an actual Claude API call. This is a meaningful honesty
+problem: documentation that shows fabricated AI output as if it were live output
+misrepresents how the system actually behaves. The lesson is that sample
+interactions in any AI project README should be captured from real runs and
+labelled clearly if they are representative rather than verbatim.
