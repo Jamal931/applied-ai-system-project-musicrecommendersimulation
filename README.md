@@ -293,32 +293,35 @@ python3 tests/eval_harness.py
 
 ## Sample Interactions
 
-### Rule-Based Mode — High-Energy Pop Profile
+### Rule-Based Mode — Live Terminal Output
 
-Input profile: `genre=pop, mood=happy, energy=0.9, tempo=128`
+The screenshots below are captured from an actual run of `PYTHONPATH=src python3 src/main.py`.
 
-```text
-================================================================
-                        High-Energy Pop
-================================================================
-  genre=pop  mood=happy  energy=0.9  tempo=128
-----------------------------------------------------------------
-  #1  Sunrise City  (Neon Echo)
-       Score : 5.77
-         • genre match (+2.0)
-         • mood match (+1.0)
-         • energy similarity (+0.92)
-         • tempo similarity (+0.49)
-         • valence similarity (+0.49)
-         • danceability similarity (+0.49)
-         • acousticness similarity (+0.39)
+#### High-Energy Pop (`genre=pop, mood=happy, energy=0.9, tempo=128`)
 
-  #2  Gym Hero  (Max Pulse)
-       Score : 4.88
-         • genre match (+2.0)
-         • energy similarity (+0.97)
-         • tempo similarity (+0.45)
-```
+![High-Energy Pop terminal output](screenshots/output-pop.png)
+
+Sunrise City wins because it is the only song that matches both genre (+2.0) and
+mood (+1.0) while also scoring near-perfect on every numeric feature. Gym Hero
+gets the genre bonus but misses on mood. Rooftop Lights (indie pop) claims #3
+via the mood bonus alone — showing that the genre filter is strict.
+
+#### Chill Lofi (`genre=lofi, mood=chill, energy=0.35, tempo=75`)
+
+![Chill Lofi terminal output](screenshots/output-lofi.png)
+
+A clean result — genre + mood bonuses dominate and the top 3 are all lofi tracks.
+Library Rain scores a rare `+1.00` energy similarity because its energy (0.35)
+exactly matches the target. Spacewalk Thoughts sneaks into #4 via mood match
+even though it is ambient, not lofi — illustrating catalog-depth limits.
+
+#### Deep Intense Rock (`genre=rock, mood=intense, energy=0.92, tempo=150`)
+
+![Deep Intense Rock terminal output](screenshots/output-rock.png)
+
+Only one rock song exists in the catalog, so Storm Runner wins easily at 5.95.
+Everything below #1 is decided purely by numeric similarity — Gym Hero's
+intense mood rescues its rank even though it is pop, not rock.
 
 ---
 
